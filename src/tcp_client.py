@@ -21,12 +21,13 @@ class make_connection:
             self.sock.settimeout(10)
         else:
             self.sock = sock
-        self.connection = 0
 
     def connect(self, host, port):
         try:
             self.sock.connect((host,port))
             self.link = 1
+            self.socket_host = host
+            self.socket_port = port
         except socket.timeout:
             my_logger.info("Socket time out error")
             self.link = 0
@@ -37,6 +38,9 @@ class make_connection:
 
     def send_data(self, msg):
 
+        if(self.link == 0):
+            my_logger.info("Socket does not have an establsihed connection to a host/port")
+            return 0
         message_len = len(msg)
         total = 0
         while total < message_len:
@@ -44,39 +48,38 @@ class make_connection:
             if sent == 0:
                 raise RuntimeError("socket connection broken")
             total = total + sent
+        my_logger.info("Socket write - Length {} sent through socket to host - {}/port - {}",
+                       total,self.socket_host,self.socket_port)
 
-    def receive_data(self):
+    def receive_data(self,how_many):
 
-        received_data = []
-        how_many = 4098         #arbitary as we don't know the response from UR-5
+        received_data = ''
         bytes_recd = 0
         incoming_data = 1
-        while (incoming_data):
-            chunk = self.sock.recv((how_many - bytes_recd), 2048)
+        bytes_remaining = how_many-bytes_recd
+        while (incoming_data and bytes_remaining):
+            chunk = self.sock.recv(bytes_remaining, 2048)
             if chunk == '':
                 incoming_data = 0
-            received_data.append(chunk)
+            received_data = received_data + chunk
             bytes_recd = bytes_recd + len(chunk)
-        return ''.join(received_data)
+            bytes_remaining = how_many-bytes_recd
+        return received_data
+
+class ur5_connection:
+
+    def __init__(self, host, port):
+
+        self.my_socket = make_connection()
+        self.my_socket.connect(host,port)
 
 
-class command_ur5:
+    def recv(self,no_bytes):
+        return self.my_socket.receive_data(no_bytes)
 
-    def __init__(self, host, port=5000):
-
-        self.my_connection = make_connection()
-        self.my_connection.connect(host,port)
-
-    def send_command(self,command_string):
-        command_string = command_string + '\n'
-        self.my_connection.send_data(command_string)
-        return self.my_connection.receive_data()
-
-    def receive_command_response(self):
-        self.my_connection.receive_data()
 
     def close_ur5_connection(self):
-        self.my_connection.end_socket()
+        self.my_socket.end_socket()
 
 
 
