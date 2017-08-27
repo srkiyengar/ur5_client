@@ -34,8 +34,8 @@ def quat_to_euler_mathworks(q0, q1, q2, q3):
 	beta = math.degrees(math.asin(2*(q0*q2-q1*q3)))
 	gamma = math.degrees(math.atan2(2*(q2*q3+q0*q1),(q0_sq - q1_sq - q2_sq + q3_sq)))
 
-    # alpha is the angle to rotate around z and gamma is around x.
-    # rotation order is z-y-x
+    #alpha is the angle to rotate around z, beta about y and gamma is around x.
+    #rotation order is z-y-x body is rotated with respect to z axis ,y-axis and x-axis by by alpha, beta, gamma
 	return alpha, beta, gamma
 
 if __name__ == '__main__':
