@@ -51,5 +51,5 @@ if __name__ == '__main__':
 
     Rz,Ry,Rx = quat_to_euler_mathworks(q0,q1,q2,q3)
 
-    print("About X {}, About Y {}, About Z {}".format(g,b,a))
+    print("About Z {}, About Y {}, About X {}".format(Rz,Ry,Rx))
 
