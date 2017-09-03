@@ -32,6 +32,48 @@ def set_UR5_tool_position(tool_pose):
     sc_connection.close()
     my_logger.info("Command Sent")
 
+def rotate_rz(r_delta):
+
+    x,y,z,rx,ry,rz = get_UR5_tool_position()
+    my_logger.info("Current Position x = {}, y = {}, z = {}".format(x,y,z))
+    my_logger.info("Current angle Rx = {}, Ry = {}, Rz = {}".format(rx,ry,rz))
+
+    acceleration = (math.pi*4)/9
+    velocity = math.pi/3
+
+    rz = rz + r_delta
+    pose_str = 'p['+ str(x)+','+ str(y)+','+ str(z)+','+ str(rx)+','+ str(ry)+','+ str(rz)+']' #To strip spaces
+    command_str = 'movej(' + pose_str + ',' + 'a=' + str(acceleration) + ',v='+ str(velocity) +')\n'
+    return command_str
+
+def rotate_rx(r_delta):
+
+    x,y,z,rx,ry,rz = get_UR5_tool_position()
+    my_logger.info("Current Position x = {}, y = {}, z = {}".format(x,y,z))
+    my_logger.info("Current angle Rx = {}, Ry = {}, Rz = {}".format(rx,ry,rz))
+
+    acceleration = (math.pi*4)/9
+    velocity = math.pi/3
+
+    rx = rx + r_delta
+    pose_str = 'p['+ str(x)+','+ str(y)+','+ str(z)+','+ str(rx)+','+ str(ry)+','+ str(rz)+']' #To strip spaces
+    command_str = 'movej(' + pose_str + ',' + 'a=' + str(acceleration) + ',v='+ str(velocity) +')\n'
+    return command_str
+
+def rotate_ry(r_delta):
+
+    x,y,z,rx,ry,rz = get_UR5_tool_position()
+    my_logger.info("Current Position x = {}, y = {}, z = {}".format(x,y,z))
+    my_logger.info("Current angle Rx = {}, Ry = {}, Rz = {}".format(rx,ry,rz))
+
+    acceleration = (math.pi*4)/9
+    velocity = math.pi/3
+
+    ry = ry + r_delta
+    pose_str = 'p['+ str(x)+','+ str(y)+','+ str(z)+','+ str(rx)+','+ str(ry)+','+ str(rz)+']' #To strip spaces
+    command_str = 'movej(' + pose_str + ',' + 'a=' + str(acceleration) + ',v='+ str(velocity) +')\n'
+    return command_str
+
 def morph_tool_position(my_position,flip):
 
     xyz_str = list(my_position[0:3])
@@ -87,30 +129,27 @@ if __name__ == '__main__':
     my_logger.addHandler(handler)
     # end of logfile preparation Log levels are debug, info, warn, error, critical
 
-    x,y,z,rx,ry,rz = get_UR5_tool_position()
-
-    acceleration = (math.pi*4)/9
-    velocity = math.pi/3
-
-    z = z + 0.20
-
-    pose_str = 'p['+ str(x)+','+ str(y)+','+ str(z)+','+ str(rx)+','+ str(ry)+','+ str(rz)+']' #To strip spaces
-
-    command_str = 'movej(' + pose_str + ',' + 'a=' + str(acceleration) + ',v='+ str(velocity) +')\n'
-    #command_str = 'set_digital_out(0,TRUE)\n'
-
     remote_commander = UR5_commander(HOST)
+
     if (remote_commander.connection == 1):
-        my_logger.info("Sending Command: {}".format(command_str))
-        remote_commander.send(command_str)
+
+        for i in range(0,3,1):
+            command_str = rotate_rz(0.2)
+            my_logger.info("Sending Command: {}".format(command_str))
+            remote_commander.send(command_str)
+            time.sleep(1)
+
+        for i in range(0,3,1):
+            command_str = rotate_rz(-0.2)
+            my_logger.info("Sending Command: {}".format(command_str))
+            remote_commander.send(command_str)
+            time.sleep(1)
+
     else:
-        my_logger.info("No link to UR5 to send Command: {}".format(command_str))
+        my_logger.info("No link to UR5 to send Command")
 
     remote_commander.close()
     #h = set_UR5_tool_position(g)
-
-    g = get_UR5_tool_position()
-
     time.sleep(1.00)
     my_logger.info("Completed")
 
