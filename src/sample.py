@@ -4,7 +4,7 @@ import numpy as np
 	#From Wikipedia - the X computation uses q0 and q1 where the formula has q1 and q3 ???
 	#Z uses q1 and q2 where as the formula uses q2 and q3???
 
-def quaternion_to_euler_angle_wikipedia(q0, q1, q2, q3):
+def quaternion_to_euler_angle_wikipedia(q0, q1, q2, q3):	#not using this due to the issue mentioned above
 	q1squared = q1*q1
 	
 	t0 = +2.0 * (q3 * q0 + q1*q2)
@@ -24,7 +24,7 @@ def quaternion_to_euler_angle_wikipedia(q0, q1, q2, q3):
 
 	# the following based on what was written in mathworks web-site
 
-def quat_to_euler_mathworks(q0, q1, q2, q3):
+def quat_to_euler_mathworks(q0, q1, q2, q3): #This is from mathworks and not using it anymore
 
 	q0_sq = q0*q0
 	q1_sq = q1*q1
@@ -59,6 +59,13 @@ def rotmat_to_RPY(R):
 	return alpha,beta,gamma
 
 def rot_mat_from_abg(a,b,g):
+	'''
+
+	:param a: Rotation about Z
+	:param b: Roation about Y
+	:param g: Rotation about X
+	:return: Rotation Matrix
+	'''
 	a = math.radians(a)
 	b = math.radians(b)
 	g = math.radians(g)
@@ -89,6 +96,83 @@ def rot_mat_from_abg(a,b,g):
 
 	return R
 
+def quat_to_axis_angle(q0, q1, q2, q3):
+	'''
+
+	:param q0: w
+	:param q1: qx
+	:param q2: qy
+	:param q3: qz
+	:return:axis vector*angle expressed as Rx, Ry, and Rz components
+	'''
+
+	sqr_w = q0*q0
+	sqr_qx = q1*q1
+	sqr_qy = q2*q2
+	sqr_qz = q3*q3
+
+	invs = 1 / (sqr_w + sqr_qx + sqr_qy + sqr_qz)	#may not be required if quarternion is normalized.
+	r00 = (sqr_qx - sqr_qy - sqr_qz + sqr_w)*invs
+	r11 = (-sqr_qx + sqr_qy - sqr_qz + sqr_w)*invs
+	r22 = (-sqr_qx - sqr_qy + sqr_qz + sqr_w)*invs
+
+	theta = math.acos((r00+r11+r22-1)/2)
+	sinetheta = math.sin(theta)
+	v = (2*sinetheta)*theta
+
+	qxy = q1*q2
+	qwz = q0*q3
+	r10 = 2.0 * (qxy + qwz)*invs
+	r01 = 2.0 * (qxy - qwz)*invs
+
+
+
+	cz = ((r10-r01)/(2*sinetheta))*theta
+
+	qxz = q1*q3
+	qwy = q2*q0
+	r20 = 2.0 * (qxz - qwy)*invs
+	r02 = 2.0 * (qxz + qwy)*invs
+
+	by = ((r02-r20)/(2*sinetheta))*theta
+
+	qyz = q2*q3
+	qwx = q0*q1
+	r21 = 2.0 * (qyz + qwx)*invs
+	r12 = 2.0 * (qyz - qwx)*invs
+
+	ax = ((r21-r12)/(2*sinetheta))*theta
+
+	return ax,by,cz
+
+def rotmat_to_quaternion(R):
+	# This function can cause divide by zero errors!!!!!
+
+
+	for (x,y), value in np.ndenumerate(R):
+		if value > 0.0 and value <0.000001:
+			R[x,y] = 0
+		elif value < 0.0 and value > -0.000001:
+			R[x,y] = 0
+	r00 = R[0,0]
+	r01 = R[0,1]
+	r02 = R[0,2]
+	r10 = R[1,0]
+	r11 = R[1,1]
+	r12 = R[1,2]
+	r20 = R[2,0]
+	r21 = R[2,1]
+	r22 = R[2,2]
+
+
+
+	qw= (math.sqrt(1 + r00 + r11 + r22))/2
+	c = 4*qw
+	qx = (r21 - r12)/c
+	qy = (r02 - r20)/c
+	qz = (r10 - r01)/c
+
+	return qw,qx,qy,qz
 
 if __name__ == '__main__':
 
@@ -107,16 +191,39 @@ if __name__ == '__main__':
 	#q2 = 0.248
 	#q3 = 0.6179
 
+	rpy = [(0,0,90),(90,0,90),(0,-90,90),(0,-90,-180),(-180,0,-90)]
+
+	for gba in rpy:
+		a = gba[2]
+		b = gba[1]
+		g = gba[0]
+		print("Given Rx = {}, Ry = {}, Rz = {}".format(g,b,a) )
+		R = rot_mat_from_abg(a,b,g)
+		R.shape = (3,3)
+		print("Computed rotation matrix")
+		for i, row in enumerate(R):
+			print ' '.join(str(row))
+		alpha,beta,gamma = rotmat_to_RPY(R)
+		print("Recomputed Rx = {}, Ry = {}, Rz = {}\n".format(gamma,beta,alpha) )
+
+		#q0,q1,q2,q3 = rotmat_to_quaternion(R)
+		#Rx,Ry,Rz = quat_to_axis_angle(q0,q1,q2,q3)
+		#print("Axis Angles Rx = {}, Ry = {}, Rz = {}\n\n".format(Rx,Ry,Rz) )
+
+	labview_fname = "1140-2017-05-23-at-20-04-18 .txt"
+
+	with open(labview_fname) as f:
+		lines = f.readlines()
+		r00,r01,r02,r03,r10,r11,r12,r13,r20,r21,r22,r23 = ([] for i in range(12))
+
+	for line in lines[6:]:
+		vq_str = line[51:]
+		vq_str = vq_str[:vq_str.rfind("*")-4]
+		x,y,z,qr,qi,qj,qk = map(float,vq_str.split(","))
+		Rx,Ry,Rz = quat_to_axis_angle(qr,qi,qj,qk)
+		print("Axis Angles Rx = {}, Ry = {}, Rz = {}\n\n".format(Rx,Ry,Rz))
 
 
-	# Angles are Rz(alpha), Ry(beta), Rx(gamma) should be supplied.
-	R1 = rot_mat_from_abg(90,0,90)
-	R1.shape = (3,3)
-	alpha,beta,gamma = rotmat_to_RPY(R1)
-	for i, row in enumerate(R1):
-		print i, ' '.join(str(row))
-
-	print("Rz = {}, Ry = {}, Rx = {}".format(alpha,beta,gamma) )
 
 
 
