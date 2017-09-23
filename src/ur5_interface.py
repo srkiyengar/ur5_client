@@ -18,7 +18,7 @@ PORT_SECONDARY_CLIENT = 30002
 PORT_REALTIME_CLIENT = 30003
 HOST = '192.168.10.2'
 
-# get_UR5_tool_position() will open and close the socket everytime a get request is made.
+# get_UR5_tool_position() to get the pose,seem to require opening and closing the socket.
 
 def get_UR5_tool_position():
     rt_connection = tc.ur5_connector(HOST,PORT_REALTIME_CLIENT)
@@ -37,7 +37,7 @@ def get_UR5_tool_position():
 
 
 def set_UR5_tool_position(tool_pose):
-    sc_connection = tc.ur5_connector(HOST,PORT_SECONDARY_CLIENT)
+    sc_connection = tc.ur5_connector(HOST,PORT_REALTIME_CLIENT)
     my_logger.info("Sending command to UR5")
 
     #tool_str = str(list(tool_pose))
@@ -73,8 +73,8 @@ def move_to_pose_base_ref(P):
 
 class UR5_commander:
 
-    def __init__(self,host=HOST):
-        self.commander = tc.ur5_connector(HOST,PORT_SECONDARY_CLIENT)
+    def __init__(self,host=HOST,port=PORT_REALTIME_CLIENT):
+        self.commander = tc.ur5_connector(host,port)
         if self.commander.my_socket.link == 0:
             raise RuntimeError("No socket connection to UR5")
             self.connection = 0
@@ -84,6 +84,9 @@ class UR5_commander:
 
     def send(self,command_str):
         self.commander.send(command_str)
+
+    def recv(self,num_bytes):
+        return self.commander.recv(num_bytes)
 
     def close(self):
         self.commander.close()
@@ -100,8 +103,9 @@ if __name__ == '__main__':
     my_logger.addHandler(handler)
     # end of logfile preparation Log levels are debug, info, warn, error, critical
 
+    x,y,z,Rx,Ry,Rz = get_UR5_tool_position()
+
     remote_commander = UR5_commander(HOST)
-    
     #   move_to_pose_base_ref((0.1935,-0.2195, 0.77865,2.184,0.0083,2.2653))
     #   move_to_pose_base_ref((-0.22227,-0.19223, 0.77560,1.2048,-1.2046,1.2145))
     ur5x_origin = -0.26135
@@ -116,7 +120,7 @@ if __name__ == '__main__':
         command_str = move_to_pose_base_ref((ur5x_origin,ur5y_origin,ur5z_origin,Rx,Ry,Rz))
         my_logger.info("Sending Command: {}".format(command_str))
         remote_commander.send(command_str)
-        time.sleep(2)
+        time.sleep(5)
     else:
         my_logger.info("No link to UR5 to send Command")
     
@@ -136,11 +140,18 @@ if __name__ == '__main__':
         ur5y = ur5y_origin + (z - z0)/1000
         ur5z = ur5z_origin + (y - y0)/1000
         Rx,Ry,Rz = sample.quat_to_axis_angle(qr,qi,qj,qk)
+        # check
+        Angle = math.sqrt(Rx*Rx + Ry*Ry + Rz*Rz)
+        rx = Rx/Angle
+        ry = Ry/Angle
+        rz = Rz/Angle
+        unit_r = math.sqrt(rx*rx+ry*ry+rz*rz)
+        # end of check
         print("Position x={}, y={}, z={},Axis Angles Rx = {}, Ry = {}, Rz = {}\n\n".format(ur5x,ur5y,ur5z,Rx,Ry,Rz))
         command_str = move_to_pose_base_ref((ur5x,ur5y,ur5z,Rx,Ry,Rz))
         my_logger.info("Sending Command: {}".format(command_str))
         remote_commander.send(command_str)
-        time.sleep(1)
+        time.sleep(0.3)
     
 
     remote_commander.close()
