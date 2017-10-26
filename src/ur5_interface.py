@@ -10,8 +10,8 @@ import sample
 import transform as tf
 import numpy as np
 
-labview_fname = "1140-2017-05-23-at-20-04-18 .txt"
-
+#labview_fname = "1140-2017-05-23-at-20-04-18 .txt"
+labview_fname = "1408-2017-10-09-at-18-14-19 .txt"
 #logger
 LOG_LEVEL = logging.DEBUG
 LOG_FILENAME = 'ur5' + datetime.now().strftime('%Y-%m-%d---%H:%M:%S')
@@ -55,9 +55,9 @@ def set_UR5_tool_position(tool_pose):
 
 def move_to_pose_base_ref(P):
 
-    #x,y,z,rx,ry,rz = get_UR5_tool_position()
-    #my_logger.info("Current Position x = {}, y = {}, z = {}".format(x,y,z))
-    #my_logger.info("Current angle Rx = {}, Ry = {}, Rz = {}".format(rx,ry,rz))
+    x,y,z,rx,ry,rz = get_UR5_tool_position()
+    my_logger.info("Current Position x = {}, y = {}, z = {}".format(x,y,z))
+    my_logger.info("Current angle Rx = {}, Ry = {}, Rz = {}".format(rx,ry,rz))
 
     acceleration = (math.pi*4)/9
     velocity = math.pi/3
@@ -105,9 +105,9 @@ if __name__ == '__main__':
     my_logger.addHandler(handler)
     # end of logfile preparation Log levels are debug, info, warn, error, critical
 
-    #x,y,z,Rx,Ry,Rz = get_UR5_tool_position()
+    starting_pose = get_UR5_tool_position()
 
-    #remote_commander = UR5_commander(HOST)
+    remote_commander = UR5_commander(HOST)
 
     with open(labview_fname) as f:
         lines = f.readlines()
@@ -119,14 +119,14 @@ if __name__ == '__main__':
 
     H2 = tf.static_transform_449_top(q1,v1,q2,v2)
 
-    ur5x_origin = 113.6
-    ur5y_origin = 121
-    ur5z_origin = 600
+    ur5x_origin = 200.42
+    ur5y_origin = -91.38
+    ur5z_origin = 822.55
 
     my_start =  lines[6][51:]
     my_start = my_start[:my_start.rfind("*")-4]
     x_ndi0,y_ndi0,z_ndi0,qr0,qi0,qj0,qk0 = map(float,my_start.split(","))
-    print("x0={:.2f}, y0={:.2f}, z0={:.2f}".format(x_ndi0,y_ndi0,z_ndi0))
+    print("NDI frame raw data - x0={:.2f}, y0={:.2f}, z0={:.2f}".format(x_ndi0,y_ndi0,z_ndi0))
 
     R0 = np.zeros((3,3))
     R0[(1,2),(2,0)] = -1
@@ -149,10 +149,6 @@ if __name__ == '__main__':
         vq_str = line[51:]
         vq_str = vq_str[:vq_str.rfind("*") - 4]
         x_ndi, y_ndi, z_ndi, qr, qi, qj, qk = map(float, vq_str.split(","))
-
-        #x = x_ndi - x0
-        #y = y_ndi - y0
-        #z = z_ndi - z0
 
         qv = (qr,qi,qj,qk)
         R1 = tf.rotation_matrix_from_quaternions(qv)
@@ -187,15 +183,16 @@ if __name__ == '__main__':
         z = uz/1000
         command_str = move_to_pose_base_ref((x,y,z,Rx,Ry,Rz))
         print("Command String: {}".format(command_str))
-        #my_logger.info("Sending Command: {}".format(command_str))
-        #remote_commander.send(command_str)
-        #time.sleep(2)
-    
+        my_logger.info("Sending Command: {}".format(command_str))
+        remote_commander.send(command_str)
+        time.sleep(0.5)
 
-    #remote_commander.close()
-    #h = set_UR5_tool_position(g)
-    time.sleep(1.00)
+    command_str = move_to_pose_base_ref(starting_pose)
+    print("Command String: {}".format(command_str))
+    my_logger.info("Sending Command: {}".format(command_str))
+    remote_commander.send(command_str)
     my_logger.info("Completed")
+    remote_commander.close()
 
 
 

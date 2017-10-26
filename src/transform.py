@@ -12,7 +12,8 @@ LOG_LEVEL = logging.DEBUG
 # Set up a logger with output level set to debug; Add the handler to the logger
 my_logger = logging.getLogger("UR5_Logger")
 
-labview_fname = "1140-2017-05-23-at-20-04-18 .txt"
+#labview_fname = "1140-2017-05-23-at-20-04-18 .txt"
+labview_fname = "1408-2017-10-09-at-18-14-19 .txt"
 
 
 def rotation_matrix_from_quaternions(q_vector):
