@@ -1,4 +1,5 @@
 __author__ = 'srkiyengar'
+
 import logging
 import logging.handlers
 from datetime import datetime
@@ -6,21 +7,18 @@ import tcp_client as tc
 import time
 import struct
 import math
-import numpy as np
-import transform
+import sample as s
 import sample
+import transform as tf
+import numpy as np
 
 
-#labview_fname = "1140-2017-05-23-at-20-04-18 .txt"
-labview_fname = "1408-2017-10-09-at-18-14-19 .txt"
-#logger
 LOG_LEVEL = logging.DEBUG
 LOG_FILENAME = 'ur5' + datetime.now().strftime('%Y-%m-%d---%H:%M:%S')
 
 PORT_SECONDARY_CLIENT = 30002
 PORT_REALTIME_CLIENT = 30003
 HOST = '192.168.10.2'
-
 
 # get_UR5_tool_position() to get the pose,seem to require opening and closing the socket.
 def get_UR5_tool_position():
@@ -39,30 +37,40 @@ def get_UR5_tool_position():
     return(struct.unpack('!dddddd',tool_pos))         # A tuple (x,y,z,rx,ry,rz)
 
 
-def set_UR5_tool_position(tool_pose,acceleration=((math.pi*4)/9), velocity=(math.pi/3)):
-
-    my_connection = tc.ur5_connector(HOST,PORT_REALTIME_CLIENT)
+def set_UR5_tool_position(tool_pose):
+    sc_connection = tc.ur5_connector(HOST,PORT_REALTIME_CLIENT)
     my_logger.info("Sending command to UR5")
 
+    #tool_str = str(list(tool_pose))
     tool_str = tool_pose
+    acceleration = (math.pi*4)/9
+    velocity = math.pi/3
     command_str = 'movej(' + tool_str + ',' + 'a=' + str(acceleration) + ',v='+ str(velocity) +')\n'
-    my_connection.send(command_str)
+    sc_connection.send(command_str)
+    sc_connection.close()
     my_logger.info("Command Sent")
-    my_connection.close()
 
 
-def compose_command(Rx,Ry,Rz,x,y,z,a=((math.pi*4)/9),v=(math.pi/3)):
-    # Rx,Ry,Rz are in radians, x, y ,z are in mm which are converted to meters
-    x = x/1000
-    y = y/1000
-    z = z/1000
 
-    # add verification based on a volume. Reject if outside the volume (result = 0)
+def move_to_pose_base_ref(P):
 
-    command_str = 'p['+ str(x)+','+ str(y)+','+ str(z)+','+ str(Rx)+','+ str(Ry)+','+ str(Rz)+']' #To strip spaces
-    command_str = 'movej(' + command_str + ',' + 'a=' + str(a) + ',v='+ str(v) +')\n'
-    result = 1
-    return result, command_str
+    x,y,z,rx,ry,rz = get_UR5_tool_position()
+    my_logger.info("Current Position x = {}, y = {}, z = {}".format(x,y,z))
+    my_logger.info("Current angle Rx = {}, Ry = {}, Rz = {}".format(rx,ry,rz))
+
+    acceleration = (math.pi*4)/9
+    velocity = math.pi/3
+
+    x = P[0]
+    y = P[1]
+    z = P[2]
+    rx = P[3]
+    ry = P[4]
+    rz = P[5]
+    pose_str = 'p['+ str(x)+','+ str(y)+','+ str(z)+','+ str(rx)+','+ str(ry)+','+ str(rz)+']' #To strip spaces
+    command_str = 'movej(' + pose_str + ',' + 'a=' + str(acceleration) + ',v='+ str(velocity) +')\n'
+    return command_str
+
 
 class UR5_commander:
 
@@ -85,17 +93,7 @@ class UR5_commander:
         self.commander.close()
 
 
-# Temporary testing Homogenous transform
-def ht_from_object_to_gripper():
-    R = np.zeros((3,3))
-    R[0,1] = -1
-    R[1,0] = -1
-    R[2,2] = -1
-    x = 0
-    y = 0
-    z = 100
-    H = transform.homogenous_transform(R,[x,y,z])
-    return H
+
 
 if __name__ == '__main__':
 
@@ -109,41 +107,53 @@ if __name__ == '__main__':
     # end of logfile preparation Log levels are debug, info, warn, error, critical
 
     starting_pose = get_UR5_tool_position()
+
     remote_commander = UR5_commander(HOST)
 
-    #Position of the TCP (close to) Object origin
-    Rx = 2.1361
-    Ry = 2.3107
-    Rz = 0.0546
-    x = 609.90
-    y = 4.51
-    z = 110.94
+    x =0.57890
+    y =0.02322
+    z =0.16084
+    Rx = 2.1372
+    Ry = 2.3716
+    Rz = -0.0487
+    command_str = move_to_pose_base_ref((x,y,z,Rx,Ry,Rz))
+    #command_str = move_to_pose_base_ref(starting_pose)
+    print("Command String: {}".format(command_str))
+    my_logger.info("Sending Command: {}".format(command_str))
+    remote_commander.send(command_str)
 
-    #
-    HT_base_to_object = transform.st_from_UR5_base_to_object_platform(Rx,Ry,Rz,x,y,z)
+    F = s.axis_angle_to_rotmat(Rx,Ry,Rz)
+    M = np.zeros((3,3))
+    M[0,1] = -1
+    M[1,0] = 1
+    M[2,2] = 1
 
-    HT_object_to_gripper = ht_from_object_to_gripper()
+    G = np.dot(F, M)
+    Rx,Ry,Rz = s.rotmat_to_axis_angle(G)
 
-    H = np.dot(HT_base_to_object,HT_object_to_gripper)
-
-    R = H[0:3,0:3]
-    x = H[0,3]
-    y = H[1,3]
-    z = H[2,3]
-    Rx,Ry,Rz = sample.rotmat_to_axis_angle(R)
-
-    success,command_str = compose_command(Rx,Ry,Rz,x,y,z)
-    if success:
-        print("Command String: {}".format(command_str))
-        my_logger.info("Sending Command: {}".format(command_str))
-        #remote_commander.send(command_str)
-        time.sleep(0.5)
-
+    command_str = move_to_pose_base_ref((x,y,z,Rx,Ry,Rz))
+    #command_str = move_to_pose_base_ref(starting_pose)
+    print("Command String: {}".format(command_str))
+    my_logger.info("Sending Command: {}".format(command_str))
+    remote_commander.send(command_str)
 
 
+    my_logger.info("Completed")
     remote_commander.close()
 
+    time.sleep(0.5)
 
 
-
-
+    x =0.479
+    y =0.07455
+    z =0.1195
+    Rx = 0.7181
+    Ry = 2.5902
+    Rz = -1.2104
+    command_str = move_to_pose_base_ref((x,y,z,Rx,Ry,Rz))
+    #command_str = move_to_pose_base_ref(starting_pose)
+    print("Command String: {}".format(command_str))
+    my_logger.info("Sending Command: {}".format(command_str))
+    remote_commander.send(command_str)
+    my_logger.info("Completed")
+    remote_commander.close()

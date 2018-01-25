@@ -62,11 +62,11 @@ def rotmat_to_RPY(R):
 
 def rot_mat_from_abg(a, b, g):
     '''
-	:param a: Rotation about Z
-	:param b: Roation about Y
-	:param g: Rotation about X
-	:return: Rotation Matrix
-	'''
+    :param a: Rotation about Z
+    :param b: Roation about Y
+    :param g: Rotation about X
+    :return: Rotation Matrix
+    '''
     a = math.radians(a)
     b = math.radians(b)
     g = math.radians(g)
@@ -97,24 +97,15 @@ def rot_mat_from_abg(a, b, g):
 
     return R
 
-def gripper_to_UR5():
-
-    R = np.zeros((3, 3))
-
-    R[0, 1] = -1
-    R[1, 2] = 1
-    R[2, 0] = -1
-    return R
-
 def quat_to_rotmat(q_vector):
 
-	qr, qi, qj, qk = q_vector
-	first = [1-2*(qj*qj+qk*qk), 2*(qi*qj-qk*qr),   2*(qi*qk+qj*qr)]
-	second= [2*(qi*qj+qk*qr),   1-2*(qi*qi+qk*qk), 2*(qj*qk-qi*qr)]
-	third = [2*(qi*qk-qj*qr),   2*(qj*qk+qi*qr),   1-2*(qi*qi+qj*qj)]
-	R = np.array([first,second,third])
+    qr, qi, qj, qk = q_vector
+    first = [1-2*(qj*qj+qk*qk), 2*(qi*qj-qk*qr),   2*(qi*qk+qj*qr)]
+    second= [2*(qi*qj+qk*qr),   1-2*(qi*qi+qk*qk), 2*(qj*qk-qi*qr)]
+    third = [2*(qi*qk-qj*qr),   2*(qj*qk+qi*qr),   1-2*(qi*qi+qj*qj)]
+    R = np.array([first,second,third])
 
-	return R
+    return R
 
 
 def rotmat_to_axis_angle(R):
@@ -139,16 +130,48 @@ def rotmat_to_axis_angle(R):
 
     return ax, by, cz
 
+def axis_angle_to_rotmat(Rx,Ry,Rz):
+
+    R = np.zeros((3,3),dtype=float)
+    a1 = [Rx,Ry,Rz]
+    angle = np.linalg.norm(a1)
+    a1 = a1/angle
+
+    c = np.cos(angle)
+    s = np.sin(angle)
+    t = 1.0-c
+
+    R[0,0] = c + a1[0]*a1[0]*t
+    R[1,1] = c + a1[1]*a1[1]*t
+    R[2,2] = c + a1[2]*a1[2]*t
+
+    tmp1 = a1[0]*a1[1]*t
+    tmp2 = a1[2]*s
+    R[1,0] = tmp1 + tmp2
+    R[0,1] = tmp1 - tmp2
+
+    tmp1 = a1[0]*a1[2]*t
+    tmp2 = a1[1]*s
+    R[2,0] = tmp1 - tmp2
+    R[0,2] = tmp1 + tmp2
+
+    tmp1 = a1[1]*a1[2]*t
+    tmp2 = a1[0]*s
+    R[2,1] = tmp1 + tmp2
+    R[1,2] = tmp1 - tmp2
+
+    return R
+
 
 def quat_to_axis_angle(q0, q1, q2, q3):
     '''
 
-	:param q0: w
-	:param q1: qx
-	:param q2: qy
-	:param q3: qz
-	:return:axis vector*angle expressed as Rx, Ry, and Rz components
-	'''
+    :param q0: w
+    :param q1: qx
+    :param q2: qy
+    :param q3: qz
+    :return:axis vector*angle expressed as Rx, Ry, and Rz components
+    '''
 
     sqr_w = q0 * q0
     sqr_qx = q1 * q1
@@ -217,6 +240,22 @@ def rotmat_to_quaternion(R):
 
 
 if __name__ == '__main__':
+
+    Rx = 1.2027
+    Ry = 1.3359
+    Rz = 1.2410
+
+    my_R = axis_angle_to_rotmat(Rx, Ry, Rz)
+
+    M = np.zeros((3,3))
+    M[0,1] = -1
+    M[1,0] = 1
+    M[2,2] = 1
+
+    G = np.dot(my_R, M)
+    rx,ry,rz = rotmat_to_axis_angle(G)
+
+    pass
 
     # q0 = 0.0044
     # q1 = -0.7342

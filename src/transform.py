@@ -109,6 +109,20 @@ def static_transform_449_top(q1,v1,q2,v2):
     H = (h1.dot(H2)).dot(H3)
     return H
 
+def st_from_UR5_base_to_object_platform(Rx,Ry,Rz,x,y,z):
+
+    first = [-1,0,0]
+    second= [0,1,0]
+    third = [0,0,-1]
+    R = np.array([first,second,third])
+    H = homogenous_transform(R,[0,0,0])
+    R1 = sample.axis_angle_to_rotmat(Rx,Ry,Rz)
+    H1 = homogenous_transform(R1,[x,y,z])
+    # H1 represents Homogenous transformation from UR5 base to UR5 tool center point.
+    # H represents Homogenous transformation from tool center point to object frame
+    # F is the homogenous transformation from base to object frame
+    F = np.dot(H1,H)
+    return F
 
 
 if __name__ == '__main__':

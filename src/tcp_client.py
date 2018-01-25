@@ -2,9 +2,7 @@ __author__ = 'srkiyengar'
 
 import socket
 import logging
-import struct
-from datetime import datetime
-import time
+
 
 
 LOG_LEVEL = logging.DEBUG
@@ -86,7 +84,7 @@ class ur5_connector:
         else:
             self.type = 0
 
-        if (self.type != 0):
+        if self.type != 0:
             self.my_socket = make_connection()
             self.my_socket.connect(host,port)
 
