@@ -21,37 +21,43 @@ PORT_SECONDARY_CLIENT = 30002
 PORT_REALTIME_CLIENT = 30003
 HOST = '192.168.10.2'
 
+my_logger = logging.getLogger("UR5_Logger")
 
 # get_UR5_tool_position() to get the pose,seem to require opening and closing the socket.
-def get_UR5_tool_position():
+def get_UR5_tool_position(logger=my_logger):
     rt_connection = tc.ur5_connector(HOST,PORT_REALTIME_CLIENT)
-    my_logger.info("reading packets from UR5")
+    logger.info("reading packets from UR5")
     message_size = rt_connection.recv(4)                    # Read first 4 bytes only
     total_length = struct.unpack('!I',message_size)[0]      # Total length of the packets following the first 4 bytes
-    my_logger.info("Message Size of RT_client response from UR5: {}".format(total_length))
+    logger.info("Message Size of RT_client response from UR5: {}".format(total_length))
     message = rt_connection.recv(total_length)
     message_len = len(message)
     rt_connection.close()
     if message_len != total_length:
-        my_logger.info("Warning !!!! - {} Bytes read NOT equal to {} bytes expected from UR5".format(total_length,message_len))
+        logger.info("Warning !!!! - {} Bytes read NOT equal to {} bytes expected from UR5".format(total_length,message_len))
 
     tool_pos = message[440:488]                         # 48 bytes consisting of 8 bytes of x,y,z,rx,ry,rz)
-    return(struct.unpack('!dddddd',tool_pos))         # A tuple (x,y,z,rx,ry,rz)
+    my_tuple = struct.unpack('!dddddd',tool_pos)
+    my_list = list(my_tuple)
+    my_list[0] = 1000*my_list[0]                      # x*1000 meter to mm
+    my_list[1] = 1000*my_list[1]                      # meter to mm
+    my_list[2] = 1000*my_list[2]                      # meter to mm
+    return(my_list)           # A list [x,y,z,rx,ry,rz]
 
 
-def set_UR5_tool_position(tool_pose,acceleration=((math.pi*4)/9), velocity=(math.pi/3)):
+def set_UR5_tool_position(tool_pose,acceleration=((math.pi*4)/9), velocity=(math.pi/3),logger=my_logger):
 
     my_connection = tc.ur5_connector(HOST,PORT_REALTIME_CLIENT)
-    my_logger.info("Sending command to UR5")
+    logger.info("Sending command to UR5")
 
     tool_str = tool_pose
     command_str = 'movej(' + tool_str + ',' + 'a=' + str(acceleration) + ',v='+ str(velocity) +')\n'
     my_connection.send(command_str)
-    my_logger.info("Command Sent")
+    logger.info("Command Sent")
     my_connection.close()
 
 
-def compose_command(Rx,Ry,Rz,x,y,z,a=((math.pi*4)/9),v=(math.pi/3)):
+def compose_command(x, y, z, Rx, Ry, Rz, a=((math.pi*4)/9),v=(math.pi/3)):
     # Rx,Ry,Rz are in radians, x, y ,z are in mm which are converted to meters
     x = x/1000
     y = y/1000
@@ -100,7 +106,7 @@ def ht_from_object_to_gripper():
 if __name__ == '__main__':
 
     # Set up a logger with output level set to debug; Add the handler to the logger
-    my_logger = logging.getLogger("UR5_Logger")
+
     my_logger.setLevel(LOG_LEVEL)
     handler = logging.handlers.RotatingFileHandler(LOG_FILENAME, maxBytes=6000000, backupCount=5)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -119,27 +125,34 @@ if __name__ == '__main__':
     y = 4.51
     z = 110.94
 
-    #
-    HT_base_to_object = transform.st_from_UR5_base_to_object_platform(Rx,Ry,Rz,x,y,z)
+    # pass the axis angle of the tcp when it is at the object origin reference
+    HT_base_to_object = transform.st_from_UR5_base_to_object_platform(x,y,z,Rx,Ry,Rz)
 
-    HT_object_to_gripper = ht_from_object_to_gripper()
+    HT_object_to_gripper = ht_from_object_to_gripper()      #
 
     H = np.dot(HT_base_to_object,HT_object_to_gripper)
 
+    # Extracting Axis angle from the matrix representing the gripper wrt base of UR5
     R = H[0:3,0:3]
     x = H[0,3]
     y = H[1,3]
     z = H[2,3]
     Rx,Ry,Rz = sample.rotmat_to_axis_angle(R)
 
-    success,command_str = compose_command(Rx,Ry,Rz,x,y,z)
+    success,command_str = compose_command(x, y, z, Rx, Ry, Rz)
     if success:
         print("Command String: {}".format(command_str))
         my_logger.info("Sending Command: {}".format(command_str))
-        #remote_commander.send(command_str)
+        remote_commander.send(command_str)
+        time.sleep(4.0)
+
+    x, y, z, Rx, Ry, Rz = starting_pose
+    success,command_str = compose_command(x, y, z, Rx, Ry, Rz)
+    if success:
+        print("Command String: {}".format(command_str))
+        my_logger.info("Sending Command: {}".format(command_str))
+        remote_commander.send(command_str)
         time.sleep(0.5)
-
-
 
     remote_commander.close()
 

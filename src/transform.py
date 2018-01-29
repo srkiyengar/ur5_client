@@ -1,9 +1,11 @@
 import logging
+import logging.handlers
 import numpy as np
 import math
 import sample
-
-
+import ur5_interface as ur5
+import time
+import newgripper as ng
 
 __author__ = 'srkiyengar'
 
@@ -12,8 +14,7 @@ LOG_LEVEL = logging.DEBUG
 # Set up a logger with output level set to debug; Add the handler to the logger
 my_logger = logging.getLogger("UR5_Logger")
 
-#labview_fname = "1140-2017-05-23-at-20-04-18 .txt"
-labview_fname = "1408-2017-10-09-at-18-14-19 .txt"
+result_fname = "781530-modified"
 
 
 def rotation_matrix_from_quaternions(q_vector):
@@ -65,52 +66,12 @@ def inverse_homogenous_transform(H):
     origin = -R.dot(origin)
     return homogenous_transform(R,list(origin.flatten()))
 
-def center_tool_339_to_gripper_frame():
 
-    '''
-    The y-axis of 339 is aligned with the y axis of the gripper. The z-axis of the 339 will require a rotation of 90
-    (counter clockwise with respect to y R (y,90) to get align gripper z axis to outward pointing. the origin of the
-    339 needs to be moved in z-axis by + 40.45mm to get it to the origin of the gripper
-
-    :return: homogenous transformation from 339 center to gripper center
-    '''
-
-    d =[0.0,0.0,40.45,1.0]
-    H = np.zeros((4,4))
-    H.shape = (4,4)
-    H[:,3]= d
-    H[(1,0),(1,2)]=1
-    H[2,0]= -1
-    return H
-
-def static_transform_449_top(q1,v1,q2,v2):
-    '''
-
-    :param q1: unit quaternions representing the rotation of the frame of 449 tool at the top
-    :param v1: vector representing the rotation of the frame of 449 tool at the top
-    :param q2: unit quaternions representing the rotation of the frame of 339 tool at the center
-    :param v2: vector representing the rotation of the frame of 339 tool at the center
-    :return: homogenous tranformation
-    '''
-    # H1 -  Homogenous transform from reference NDI frame to front tool
-    # H2 -  Homogenous transform from reference NDI frame to center tool
-    # H3 -  Homogenous transformation from the center tool frame to center of the gripper with axis rotated where the y
-    # is parallel and between the two fingers and z is pointing outward
-
-
-    R1 = rotation_matrix_from_quaternions(q1)
-    H1 = homogenous_transform(R1, v1)
-    h1 = inverse_homogenous_transform(H1)
-
-    R2 = rotation_matrix_from_quaternions(q2)
-    H2 = homogenous_transform(R2, v2)
-
-    H3 = center_tool_339_to_gripper_frame()
-    H = (h1.dot(H2)).dot(H3)
-    return H
-
-def st_from_UR5_base_to_object_platform(Rx,Ry,Rz,x,y,z):
-
+def st_from_UR5_base_to_object_platform(x,y,z,Rx,Ry,Rz):
+    # The tool center frame and the object frame are at the same origin but the tool center z is in opposite direction
+    # The object frame y direction has been set by the transformation used to convert the NDI referenced data to object
+    # frame referenced data.
+    # the following transformation rotates tool center point coordinate and frame to represent the object origin
     first = [-1,0,0]
     second= [0,1,0]
     third = [0,0,-1]
@@ -124,83 +85,101 @@ def st_from_UR5_base_to_object_platform(Rx,Ry,Rz,x,y,z):
     F = np.dot(H1,H)
     return F
 
+# Takes in Axis Angle and build a Homogenous Transform
+def ht_of_object_to_gripper(A):
+    # A = [x,y,z,Rx,Ry,Rz]
+
+    x = A[0]
+    y = A[1]
+    z = A[2]
+    R = sample.axis_angle_to_rotmat(A[3], A[4], A[5])
+    H = homogenous_transform(R, [x, y, z])
+    return H
 
 if __name__ == '__main__':
-    with open(labview_fname) as f:
+
+    my_gripper = ng.gripper()
+    a = my_gripper.palm.get_palm_lower_limits()
+    print a
+
+
+    # Set up a logger with output level set to debug; Add the handler to the logger
+    my_logger = logging.getLogger("UR5_Logger")
+    my_logger.setLevel(LOG_LEVEL)
+    handler = logging.handlers.RotatingFileHandler(ur5.LOG_FILENAME, maxBytes=6000000, backupCount=5)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    my_logger.addHandler(handler)
+    # end of logfile preparation Log levels are debug, info, warn, error, critical
+
+    starting_pose = ur5.get_UR5_tool_position()
+    remote_commander = ur5.UR5_commander(ur5.HOST)
+
+    with open(result_fname) as f:
         lines = f.readlines()
 
-    v1 = [97.663788, -180.389755, -1895.446655]
-    q1 = [0.416817, -0.806037, 0.028007, -0.419267]
-    v2 = [78.019791, -26.525036, -1980.021118]
-    q2 = [0.222542, 0.551251, 0.281243, 0.753326]
+    # Position of the TCP (close to) Object origin
+    Rx = 2.1361
+    Ry = 2.3107
+    Rz = 0.0546
+    x = 609.90
+    y = 4.51
+    z = 103.94
 
-    H2 = static_transform_449_top(q1,v1,q2,v2)
+    # pass the axis angle of the tcp to obtain the object origin reference wrt to base
+    HT_base_to_object = st_from_UR5_base_to_object_platform(x,y,z,Rx,Ry,Rz)
 
-    ur5x_origin = 0.1136
-    ur5y_origin = -0.121
-    ur5z_origin = 0.600
+    # starting point of the gripper
+    t,x,y,z,Rx,Ry,Rz,f1,f2,f3,f4 = map(float,lines[0].split(','))
+    HT_object_to_gripper = ht_of_object_to_gripper([x,y,z,Rx,Ry,Rz])
+    H = np.dot(HT_base_to_object,HT_object_to_gripper)
+    x = H[0,3]
+    y = H[1,3]
+    z = H[2,3]
+    R = np.zeros((3,3))
+    R = H[0:3,0:3]
+    Rx,Ry,Rz = sample.rotmat_to_axis_angle(R)
+    print("x={:.3f}, y={:.3f}, z={:.3f}, Rx={:.3f}, Ry={:.3f}, Rz={:.3f}".format(x,y,z,Rx,Ry,Rz))
+    success,command_str = ur5.compose_command(x, y, z, Rx, Ry, Rz)
+    if success:
+        print("Command String: {}".format(command_str))
+        my_logger.info("Sending Command: {}".format(command_str))
+        remote_commander.send(command_str)
 
-    my_start =  lines[6][51:]
-    my_start = my_start[:my_start.rfind("*")-4]
-    x_ndi0,y_ndi0,z_ndi0,qr0,qi0,qj0,qk0 = map(float,my_start.split(","))
-    print("x0={}, y0={}, z0={}".format(x_ndi0,y_ndi0,z_ndi0))
+    #end point of the gripper
+    t,x,y,z,Rx,Ry,Rz,f1,f2,f3,f4 = map(float,lines[(len(lines)-1)].split(','))
+    time.sleep(t+5)
+    HT_object_to_gripper = ht_of_object_to_gripper([x,y,z,Rx,Ry,Rz])
+    H = np.dot(HT_base_to_object,HT_object_to_gripper)
+    x = H[0,3]
+    y = H[1,3]
+    z = H[2,3]
+    R = np.zeros((3,3))
+    R = H[0:3,0:3]
+    Rx,Ry,Rz = sample.rotmat_to_axis_angle(R)
+    print("x={:.3f}, y={:.3f}, z={:.3f}, Rx={:.3f}, Ry={:.3f}, Rz={:.3f}".format(x,y,z,Rx,Ry,Rz))
+    success,command_str = ur5.compose_command(x, y, z, Rx, Ry, Rz)
+    if success:
+        print("Command String: {}".format(command_str))
+        my_logger.info("Sending Command: {}".format(command_str))
+        remote_commander.send(command_str)
+    time.sleep(t+3)
 
-
-
-    R0 = np.zeros((3,3))
-    R0[(1,2),(2,0)] = -1
-    R0[0,1]=1
-    H0 = homogenous_transform(R0,[0.0,0.0,0.0])
-
-    qv = (qr0,qi0,qj0,qk0)
-    R1 = rotation_matrix_from_quaternions(qv)
-    H1 = homogenous_transform(R1,[x_ndi0,y_ndi0,z_ndi0])
-    H = H1.dot(H2)
-    rH = H0.dot(H)
-
-    R = rH[0:3,0:3]
-    x0 = rH[0,3]
-    y0 = rH[1,3]
-    z0 = rH[2,3]
-
-    for line in lines[7:]:
-        vq_str = line[51:]
-        vq_str = vq_str[:vq_str.rfind("*") - 4]
-        x_ndi, y_ndi, z_ndi, qr, qi, qj, qk = map(float, vq_str.split(","))
-
-        #x = x_ndi - x0
-        #y = y_ndi - y0
-        #z = z_ndi - z0
-
-        qv = (qr,qi,qj,qk)
-        R1 = rotation_matrix_from_quaternions(qv)
-        H1 = homogenous_transform(R1,[x_ndi,y_ndi,z_ndi])
-        H = H1.dot(H2)
-
-        rH = H0.dot(H)
-
-        R = rH[0:3,0:3]
-        x = rH[0,3] - x0
-        y = rH[1,3] - y0
-        z = rH[2,3] - z0
-
-        # For testing with UR5, aligning the y data of NDI frame to X-axis of the base of UR-5, z to -Y, x to -Z
-        # x,y,z now are UR-5 coordinates
-
-
-
-        #print("Ux={}, y={}, Uy={}, z={}, Uz={}, x={}".format(ux,uy,uz,y,z,x))
-        print("x={:.3f}, y={:.3f}, z={:.3f}".format(x,y,z))
-        #Rx,Ry,Rz = sample.quat_to_axis_angle(qr,qi,qj,qk)
-        #Rx,Ry,Rz = sample.rotmat_to_axis_angle(R)
-        # check
-        #Angle = math.sqrt(Rx*Rx + Ry*Ry + Rz*Rz)
-        #rx = Rx/Angle
-        #ry = Ry/Angle
-        #rz = Rz/Angle
-        #unit_r = math.sqrt(rx*rx+ry*ry+rz*rz)
-        # end of check
-        #print("Angle x={}, Unit Vector={}, {}, {}\n".format(Angle,rx,ry,rz))
-        #print("Position x={}, y={}, z={},Axis Angles for UR-5 Rx = {}, Ry = {}, Rz = {}".format(ux,uy,uz,Rx,Ry,Rz))
-        #print("x={}, y={}, z={}".format(ux,uy,uz))
-    #print("Xdiff={}, Ydiff={}, Zdiff={}".format(ux-ur5x_origin,uy-ur5y_origin,uz-ur5z_origin))
+    # move to grip the object
+    my_grip = [0,f1,f2,f3,f4]
+    my_grip = map(int,my_grip)
+    print my_grip
+    my_gripper.palm.move_to_goal_position(my_grip)
+    time.sleep(2.0)
+    # release the object by going back to the lowest position.
+    my_gripper.palm.move_to_goal_position(a)
+    time.sleep(2.0)
+    # Sending the tcp back to the start location
+    x, y, z, Rx, Ry, Rz = starting_pose
+    success,command_str = ur5.compose_command(x, y, z, Rx, Ry, Rz)
+    if success:
+        print("Command String: {}".format(command_str))
+        my_logger.info("Sending Command: {}".format(command_str))
+        remote_commander.send(command_str)
+        time.sleep(3.0)
+    remote_commander.close()
