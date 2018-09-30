@@ -58,7 +58,7 @@ class gripper():
         # Set the width and height of the screen [width,height]
         size = [500, 700]
         screen = pygame.display.set_mode(size)
-        pygame.display.set_caption("Reflex_SF JoyStick Movements")
+        pygame.display.set_caption("Reflex_SF Calibration")
 
         # Used to manage how fast the screen updates
         clock = pygame.time.Clock()
@@ -130,44 +130,13 @@ class gripper():
             clock.tick(SCAN_RATE)
 
         # Calibration completed
+        return
 
-        # The main loop that examines for other UI actions including Joy button/HatLoop until the user clicks the close button.
-        done = False
-        while done is False:
-            screen.fill(WHITE)
-            textPrint.reset()
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    done = True
-                    time.sleep(0.5)
-                    self.palm.move_to_lower_limits()
-                    gp_servo = self.palm.read_palm_servo_positions()
-                elif event.type == pygame.KEYDOWN:
-                    key_pressed = event.key
-                    print("Key Ascii Value {} Pressed".format(key_pressed))
-                    key_ring[str(key_pressed)] = 1
-                    if key_ring['301'] == 1:    # Caps lock is 1
-                        time.sleep(0.5)
-                        my_key_controller.set_key_press(key_pressed)
-                        time.sleep(0.2)
-                elif event.type == pygame.KEYUP:
-                    key_released = event.key
-                    print("Key Ascii Value {} Released".format(key_released))
-                    key_ring[str(key_released)] = 0
+    def move_to_start(self):
 
-                else:
-                    pass # ignoring other non-logitech joystick event types
-
-            textPrint.Screenprint(screen, "When ready to Quit, close the screen")
-            textPrint.Yspace()
-            textPrint.Screenprint(screen,"Caps Lock Key Pressed {}".format(key_ring['301']))
-            textPrint.Yspace()
-
-            pygame.display.flip()
-
-            # Limit to 20 frames per second OR 50 ms scan rate - 1000/20 = 50 ms Both display and checking of Joystick;
-            clock.tick(SCAN_RATE)
-
+        self.palm.move_to_lower_limits()
+        gp_servo = self.palm.read_palm_servo_positions()
+        print(gp_servo)
         return
 
 
