@@ -14,7 +14,7 @@ LOG_LEVEL = logging.DEBUG
 # Set up a logger with output level set to debug; Add the handler to the logger
 my_logger = logging.getLogger("UR5_Logger")
 
-result_fname = "781530-modified"
+result_fname = "781530-modified" # used for Victor's demo
 
 
 def rotation_matrix_from_quaternions(q_vector):
@@ -98,6 +98,9 @@ def ht_of_object_to_gripper(A):
 
 if __name__ == '__main__':
 
+    # This is the main program and requires a file result_fname which it uses to read the initial and final position
+    # of the gripper and the gripper fingers.
+
     my_gripper = ng.gripper()
     a = my_gripper.palm.get_palm_lower_limits()
     print a
@@ -115,10 +118,11 @@ if __name__ == '__main__':
     starting_pose = ur5.get_UR5_tool_position()
     remote_commander = ur5.UR5_commander(ur5.HOST)
 
-    with open(result_fname) as f:
-        lines = f.readlines()
+    #with open(result_fname) as f:
+        #lines = f.readlines()
 
-    # Position of the TCP (close to) Object origin
+    # Position of the TCP (close to) Object origin - obtained using the UR5
+    # The file needs to delete all the lines after the minimum z value. This is done manually.
     Rx = 2.1361
     Ry = 2.3107
     Rz = 0.0546
@@ -129,8 +133,11 @@ if __name__ == '__main__':
     # pass the axis angle of the tcp to obtain the object origin reference wrt to base
     HT_base_to_object = st_from_UR5_base_to_object_platform(x,y,z,Rx,Ry,Rz)
 
-    # starting point of the gripper
-    t,x,y,z,Rx,Ry,Rz,f1,f2,f3,f4 = map(float,lines[0].split(','))
+    # starting point of the gripper, to be read from the file
+    #t,x,y,z,Rx,Ry,Rz,f1,f2,f3,f4 = map(float,lines[0].split(','))
+    # starting point of the gripper manually typed in for data collection id 852770
+    t, x, y, z, Rx, Ry, Rz, f1, f2, f3, f4 = 158.220755,265.920401,-417.636386,268.157365,-0.308993,2.730804,1.153403,15488,14079,17274,16376
+
     HT_object_to_gripper = ht_of_object_to_gripper([x,y,z,Rx,Ry,Rz])
     H = np.dot(HT_base_to_object,HT_object_to_gripper)
     x = H[0,3]
@@ -147,8 +154,10 @@ if __name__ == '__main__':
         remote_commander.send(command_str)
 
     #end point of the gripper
-    t,x,y,z,Rx,Ry,Rz,f1,f2,f3,f4 = map(float,lines[(len(lines)-1)].split(','))
-    time.sleep(t+5)
+    #t,x,y,z,Rx,Ry,Rz,f1,f2,f3,f4 = map(float,lines[(len(lines)-1)].split(','))
+    # end point of the gripper manually typed in for data collection id 852770
+    t, x, y, z, Rx, Ry, Rz, f1, f2, f3, f4 = 159.684838,4.650971,-27.813004,160.731490,-1.994629,2.323317,0.128099,16294,13277,18073,16665
+    time.sleep(5)
     HT_object_to_gripper = ht_of_object_to_gripper([x,y,z,Rx,Ry,Rz])
     H = np.dot(HT_base_to_object,HT_object_to_gripper)
     x = H[0,3]
@@ -163,7 +172,7 @@ if __name__ == '__main__':
         print("Command String: {}".format(command_str))
         my_logger.info("Sending Command: {}".format(command_str))
         remote_commander.send(command_str)
-    time.sleep(t+3)
+    time.sleep(6)
 
     # move to grip the object
     my_grip = [0,f1,f2,f3,f4]
@@ -183,3 +192,4 @@ if __name__ == '__main__':
         remote_commander.send(command_str)
         time.sleep(3.0)
     remote_commander.close()
+    my_gripper.move_to_start()
