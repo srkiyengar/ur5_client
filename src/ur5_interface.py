@@ -8,7 +8,7 @@ import struct
 import math
 import numpy as np
 import transform
-import sample
+import rotmath as rm
 
 
 #labview_fname = "1140-2017-05-23-at-20-04-18 .txt"
@@ -137,7 +137,7 @@ if __name__ == '__main__':
     x = H[0,3]
     y = H[1,3]
     z = H[2,3]
-    Rx,Ry,Rz = sample.rotmat_to_axis_angle(R)
+    Rx,Ry,Rz = rm.rotmat_to_axis_angle(R)
 
     success,command_str = compose_command(x, y, z, Rx, Ry, Rz)
     if success:

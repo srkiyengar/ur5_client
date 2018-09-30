@@ -2,7 +2,7 @@ import logging
 import logging.handlers
 import numpy as np
 import math
-import sample
+import rotmath as rm
 import ur5_interface as ur5
 import time
 import newgripper as ng
@@ -77,7 +77,7 @@ def st_from_UR5_base_to_object_platform(x,y,z,Rx,Ry,Rz):
     third = [0,0,-1]
     R = np.array([first,second,third])
     H = homogenous_transform(R,[0,0,0])
-    R1 = sample.axis_angle_to_rotmat(Rx,Ry,Rz)
+    R1 = rm.axis_angle_to_rotmat(Rx,Ry,Rz)
     H1 = homogenous_transform(R1,[x,y,z])
     # H1 represents Homogenous transformation from UR5 base to UR5 tool center point.
     # H represents Homogenous transformation from tool center point to object frame
@@ -92,7 +92,7 @@ def ht_of_object_to_gripper(A):
     x = A[0]
     y = A[1]
     z = A[2]
-    R = sample.axis_angle_to_rotmat(A[3], A[4], A[5])
+    R = rm.axis_angle_to_rotmat(A[3], A[4], A[5])
     H = homogenous_transform(R, [x, y, z])
     return H
 
@@ -118,9 +118,6 @@ if __name__ == '__main__':
     starting_pose = ur5.get_UR5_tool_position()
     remote_commander = ur5.UR5_commander(ur5.HOST)
 
-    #with open(result_fname) as f:
-        #lines = f.readlines()
-
     # Position of the TCP (close to) Object origin - obtained using the UR5
     # The file needs to delete all the lines after the minimum z value. This is done manually.
     Rx = 2.1361
@@ -132,6 +129,10 @@ if __name__ == '__main__':
 
     # pass the axis angle of the tcp to obtain the object origin reference wrt to base
     HT_base_to_object = st_from_UR5_base_to_object_platform(x,y,z,Rx,Ry,Rz)
+
+    # uncomment the open for reading from file
+    # with open(result_fname) as f:
+    # lines = f.readlines()
 
     # starting point of the gripper, to be read from the file
     #t,x,y,z,Rx,Ry,Rz,f1,f2,f3,f4 = map(float,lines[0].split(','))
@@ -145,7 +146,7 @@ if __name__ == '__main__':
     z = H[2,3]
     R = np.zeros((3,3))
     R = H[0:3,0:3]
-    Rx,Ry,Rz = sample.rotmat_to_axis_angle(R)
+    Rx,Ry,Rz = rm.rotmat_to_axis_angle(R)
     print("x={:.3f}, y={:.3f}, z={:.3f}, Rx={:.3f}, Ry={:.3f}, Rz={:.3f}".format(x,y,z,Rx,Ry,Rz))
     success,command_str = ur5.compose_command(x, y, z, Rx, Ry, Rz)
     if success:
@@ -165,7 +166,7 @@ if __name__ == '__main__':
     z = H[2,3]
     R = np.zeros((3,3))
     R = H[0:3,0:3]
-    Rx,Ry,Rz = sample.rotmat_to_axis_angle(R)
+    Rx,Ry,Rz = rm.rotmat_to_axis_angle(R)
     print("x={:.3f}, y={:.3f}, z={:.3f}, Rx={:.3f}, Ry={:.3f}, Rz={:.3f}".format(x,y,z,Rx,Ry,Rz))
     success,command_str = ur5.compose_command(x, y, z, Rx, Ry, Rz)
     if success:
