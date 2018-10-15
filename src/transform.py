@@ -102,9 +102,11 @@ if __name__ == '__main__':
     # of the gripper and the gripper fingers.
 
     my_gripper = ng.gripper()
-    a = my_gripper.palm.get_palm_lower_limits()
-    print a
+    C_current = my_gripper.palm.get_palm_lower_limits()
+    print "Current calibrated position of the gripper = {}".format(C_current)
 
+    C_measurement = [0,14535, 15003, 16418, 13272]
+    print "Calibrated position of the gripper at data collection = {}".format(C_measurement)
 
     # Set up a logger with output level set to debug; Add the handler to the logger
     my_logger = logging.getLogger("UR5_Logger")
@@ -137,8 +139,10 @@ if __name__ == '__main__':
     # starting point of the gripper, to be read from the file
     #t,x,y,z,Rx,Ry,Rz,f1,f2,f3,f4 = map(float,lines[0].split(','))
     # starting point of the gripper manually typed in for data collection id 852770
-    t, x, y, z, Rx, Ry, Rz, f1, f2, f3, f4 = 158.220755,265.920401,-417.636386,268.157365,-0.308993,2.730804,1.153403,15488,14079,17274,16376
+    #t, x, y, z, Rx, Ry, Rz, f1, f2, f3, f4 = 158.220755,265.920401,-417.636386,268.157365,-0.308993,2.730804,1.153403,15488,14079,17274,16376
 
+    # intermediate point of the gripper manually typed in for data collection id 897034 (17May2018)
+    t, x, y, z, Rx, Ry, Rz, f1, f2, f3, f4 = 3.158590,0.909219,-53.432566,194.968568,-1.838161,2.400074,0.157878,15606,13930,17489,12887
     HT_object_to_gripper = ht_of_object_to_gripper([x,y,z,Rx,Ry,Rz])
     H = np.dot(HT_base_to_object,HT_object_to_gripper)
     x = H[0,3]
@@ -148,16 +152,19 @@ if __name__ == '__main__':
     R = H[0:3,0:3]
     Rx,Ry,Rz = rm.rotmat_to_axis_angle(R)
     print("x={:.3f}, y={:.3f}, z={:.3f}, Rx={:.3f}, Ry={:.3f}, Rz={:.3f}".format(x,y,z,Rx,Ry,Rz))
-    success,command_str = ur5.compose_command(x, y, z, Rx, Ry, Rz)
+    success,command_str1 = ur5.compose_command(x, y, z, Rx, Ry, Rz)
     if success:
-        print("Command String: {}".format(command_str))
-        my_logger.info("Sending Command: {}".format(command_str))
-        remote_commander.send(command_str)
+        print("Command String: {}".format(command_str1))
+        my_logger.info("Sending Command: {}".format(command_str1))
+        remote_commander.send(command_str1)
 
     #end point of the gripper
     #t,x,y,z,Rx,Ry,Rz,f1,f2,f3,f4 = map(float,lines[(len(lines)-1)].split(','))
     # end point of the gripper manually typed in for data collection id 852770
-    t, x, y, z, Rx, Ry, Rz, f1, f2, f3, f4 = 159.684838,4.650971,-27.813004,160.731490,-1.994629,2.323317,0.128099,16294,13277,18073,16665
+    #t, x, y, z, Rx, Ry, Rz, f1, f2, f3, f4 = 159.684838,4.650971,-27.813004,160.731490,-1.994629,2.323317,0.128099,16294,13277,18073,16665
+    # end point of the gripper manually typed in for data collection id 897034 (17May2018)
+    # t, x, y, z, Rx, Ry, Rz, f1, f2, f3, f4 = 3.659618, -3.018494, -16.571129, 136.277208, -1.937208, 2.376849, 0.067398, 15801, 13735, 17683, 12887
+    t, x, y, z, Rx, Ry, Rz, f1, f2, f3, f4 = 3.659618, -3.018494, -16.571129, 136.277208, -1.937208, 2.376849, 0.067398, 16308,13229,18184, 12887
     time.sleep(5)
     HT_object_to_gripper = ht_of_object_to_gripper([x,y,z,Rx,Ry,Rz])
     H = np.dot(HT_base_to_object,HT_object_to_gripper)
@@ -168,22 +175,43 @@ if __name__ == '__main__':
     R = H[0:3,0:3]
     Rx,Ry,Rz = rm.rotmat_to_axis_angle(R)
     print("x={:.3f}, y={:.3f}, z={:.3f}, Rx={:.3f}, Ry={:.3f}, Rz={:.3f}".format(x,y,z,Rx,Ry,Rz))
-    success,command_str = ur5.compose_command(x, y, z, Rx, Ry, Rz)
+    success,command_str2 = ur5.compose_command(x, y, z, Rx, Ry, Rz)
     if success:
-        print("Command String: {}".format(command_str))
-        my_logger.info("Sending Command: {}".format(command_str))
-        remote_commander.send(command_str)
+        print("Command String: {}".format(command_str2))
+        my_logger.info("Sending Command: {}".format(command_str2))
+        remote_commander.send(command_str2)
     time.sleep(6)
 
-    # move to grip the object
-    my_grip = [0,f1,f2,f3,f4]
-    my_grip = map(int,my_grip)
+    # move to grip the object after correcting adjusting the finger movement w.r.t. current calibration
+    F_diff = [0,0,0,0,0]
+    F_diff[1] = f1 - C_measurement[1]
+    F_diff[2] = f2 - C_measurement[2]
+    F_diff[3] = f3 - C_measurement[3]
+    F_diff[4] = f4 - C_measurement[4]
+
+    my_grip = [0,F_diff[1]+C_current[1],F_diff[2]+C_current[2],F_diff[3]+C_current[3],F_diff[4]+C_current[4]]
+    my_grip[4] = 0
+
+    print "Angle travelled {} in ticks".format(F_diff)
     print my_grip
     my_gripper.palm.move_to_goal_position(my_grip)
     time.sleep(2.0)
-    # release the object by going back to the lowest position.
-    my_gripper.palm.move_to_goal_position(a)
-    time.sleep(2.0)
+
+    #Lift the object
+    print("Command String: {}".format(command_str1))
+    my_logger.info("Sending Command: {}".format(command_str1))
+    remote_commander.send(command_str1)
+    time.sleep(6)
+
+    #put it back
+    print("Command String: {}".format(command_str2))
+    my_logger.info("Sending Command: {}".format(command_str2))
+    remote_commander.send(command_str2)
+    time.sleep(6)
+
+    #release the object by going back to the lowest position.
+    my_gripper.palm.move_to_goal_position(C_current)
+    time.sleep(5.0)
     # Sending the tcp back to the start location
     x, y, z, Rx, Ry, Rz = starting_pose
     success,command_str = ur5.compose_command(x, y, z, Rx, Ry, Rz)
@@ -191,6 +219,6 @@ if __name__ == '__main__':
         print("Command String: {}".format(command_str))
         my_logger.info("Sending Command: {}".format(command_str))
         remote_commander.send(command_str)
-        time.sleep(3.0)
+        time.sleep(5.0)
     remote_commander.close()
     my_gripper.move_to_start()
