@@ -372,13 +372,16 @@ class reflex_sf():
         return F
 
     def move_to_goal_position(self,gp):
-        for i in range(1,5,1):      # the gp is a list of 5 numbers where the first one is unused
-                                    # 0,1,2,3,4 correspond to servo numbers. Since 0 in non existant
+        for i in range(1,4,1):      # the gp is a list of 5 numbers where the first one is unused
+                                    # 0,1,2,3,4 correspond to servo numbers. Since 0 in non existent - I don't want to move servo 4.
             my_logger.info("Moving Servo: {} to Goal position: {}".format(i, gp[i]))
             # check if it is within limit
-            self.is_finger_within_limit(i,gp[i])
-            self.finger[i]["servo"].set_goal_position(gp[i])
-            self.finger[i]["GP"] = gp[i]
+            move_to = self.is_finger_within_limit(i,gp[i])
+            if move_to > 0:
+                self.finger[i]["servo"].set_goal_position(move_to)
+                self.finger[i]["GP"] = move_to
+            else:
+                print("Finger {} - cannot be moved to {}".format(i,gp[i]))
         return
 
     def move_fingers_velocity_method(self,my_joy,displacement_y, displacement_x):
