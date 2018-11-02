@@ -1,5 +1,4 @@
 __author__ = 'srkiyengar'
-import logging
 import logging.handlers
 from datetime import datetime
 import tcp_client as tc
