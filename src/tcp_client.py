@@ -2,10 +2,12 @@ __author__ = 'srkiyengar'
 
 import socket
 import logging
+import os
 
 
 
-LOG_LEVEL = logging.DEBUG
+scriptname = os.path.basename(__file__)
+LOG_LEVEL = logging.INFO
 PORT_SECONDARY_CLIENT = 30002
 PORT_REALTIME_CLIENT = 30003
 
@@ -20,7 +22,7 @@ class make_connection:
             try:
                 self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             except socket.error as e:
-                my_logger.info("Socket Error: {} ".format(e))
+                my_logger.info("{}:Socket Error: {} ".format(scriptname,e))
                 raise Exception('Could not create socket\n')
 
             self.sock.settimeout(10)
@@ -34,7 +36,7 @@ class make_connection:
             self.socket_host = host
             self.socket_port = port
         except socket.timeout:
-            my_logger.info("Socket Timeout: No socket connection to Host {} Port {}".format(host,port))
+            my_logger.info("{}:Socket Timeout: No socket connection to Host {} Port {}".format(scriptname,host,port))
             self.link = 0
             raise RuntimeError("Failure of socket connection to Host {} Port {}".format(host,port))
 
@@ -45,7 +47,7 @@ class make_connection:
     def send_data(self, msg):
 
         if(self.link == 0):
-            my_logger.info("Socket does not have an established connection to a host/port")
+            my_logger.info("{}:Socket does not have an established connection to a host/port".format(scriptname))
             return 0
         message_len = len(msg)
         total = 0
@@ -54,8 +56,9 @@ class make_connection:
             if sent == 0:
                 raise RuntimeError("socket connection broken")
             total = total + sent
-        my_logger.info("Socket write: {} \nLength {} sent through socket to host - {} and port - {}".
-                       format(msg, total,self.socket_host,self.socket_port))
+        my_logger.info("{}:Socket write: {}".format(scriptname,msg))
+        my_logger.debug("{}:Length {} sent through socket to host - {} and port - {}".
+                       format(scriptname, total, self.socket_host, self.socket_port))
         return message_len
 
     def receive_data(self,how_many):

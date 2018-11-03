@@ -2,18 +2,22 @@ __author__ = 'srkiyengar'
 
 import logging.handlers
 import numpy as np
-import math
 import rotmath as rm
 import ur5_interface as ur5
 import time
 import newgripper as ng
 import cv2
+import os
 import sys
 import match
+from datetime import datetime
 
 
 
-LOG_LEVEL = logging.DEBUG
+scriptname = os.path.basename(__file__)
+LOG_LEVEL = logging.INFO
+LOG_FILENAME = 'ur5' + datetime.now().strftime('%Y-%m-%d---%H:%M:%S')
+LOG_FILENAME2 = 'ur5-grasps-' + datetime.now().strftime('%Y-%m-%d---%H:%M:%S')
 
 # Set up a logger with output level set to debug; Add the handler to the logger
 my_logger = logging.getLogger("UR5_Logger")
@@ -197,12 +201,19 @@ if __name__ == '__main__':
     # Set up a logger with output level set to debug; Add the handler to the logger
     my_logger = logging.getLogger("UR5_Logger")
     my_logger.setLevel(LOG_LEVEL)
-    handler = logging.handlers.RotatingFileHandler(ur5.LOG_FILENAME, maxBytes=6000000, backupCount=5)
+    handler = logging.handlers.RotatingFileHandler(LOG_FILENAME, maxBytes=6000000, backupCount=5)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
     my_logger.addHandler(handler)
     # end of logfile preparation Log levels are debug, info, warn, error, critical
 
+    # Results Logger
+    result_logger = logging.getLogger("Results_Logger")
+    result_logger.setLevel(LOG_LEVEL)
+    handler = logging.handlers.RotatingFileHandler(LOG_FILENAME2, maxBytes=6000000, backupCount=5)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    result_logger.addHandler(handler)
 
     # This part of the code opens a CV window which overlays a RS image of a selected grasp onto the live
     # video feed of the RS camera. The purpose of this code is to recreate the grasp as accurately as possible
@@ -211,17 +222,21 @@ if __name__ == '__main__':
     # When alignment is complete, press SPACE bar to move onto the main code.
 
     my_objects = match.match(my_dir)
+    if(my_objects.success == False):
+        my_logger.info("{}:Exiting program".format(scriptname))
+        sys.exit(1)
     my_objects.pickup_files()
     my_objects.pair_files()
 
     obj_id_list = map(int,my_objects.id)
 
-    my_logger.info("Total number of objects {} - List of objects = {}".format(len(obj_id_list ),obj_id_list))
+    my_logger.info("{}:Total number of objects {} - List of objects = {}".format(scriptname,len(obj_id_list ),obj_id_list))
+    result_logger.info("{}:Total number of objects {} - List of objects = {}".format(scriptname,len(obj_id_list ),obj_id_list))
     print(obj_id_list)
 
     my_gripper = ng.gripper()
     current_finger_low_pos = my_gripper.palm.get_palm_lower_limits()
-    my_logger.info("Current calibrated position of the gripper = {}".format(current_finger_low_pos))
+    my_logger.info("{}:Current calibrated position of the gripper = {}".format(scriptname,current_finger_low_pos))
     print ("Current calibrated position of the gripper = {}".format(current_finger_low_pos))
 
     for num in obj_id_list:
@@ -237,7 +252,7 @@ if __name__ == '__main__':
         img = np.load(img_filename)
         transparency = 0.6
 
-        my_logger.info("Displaying Image File {} of object {}".format(num, img_filename))
+        my_logger.info("{}: Image File {} - object {}".format(scriptname,num, img_filename))
         print("Displaying Image File {} of object {}".format(num, img_filename))
 
         while cap.isOpened():
@@ -274,13 +289,15 @@ if __name__ == '__main__':
                 lines = f.readlines()
 
         except:
-            my_logger.info("unable to open file {}, skipping object id {} ".format(move_file, num))
+            my_logger.info("{}:unable to open file {}, skipping object id {} ".format(scriptname,move_file, num))
             print("unable to open file {}, skipping object id {} ".format(move_file, num))
+            result_logger.info("Object {} grasp replay: Failure:unable to open file {}".format(num,move_file))
             continue
 
         if ("Fingers at calibration" != lines[0][0:22]):
-            my_logger("Skipping object id {}: {}-ur5 line 0 should have Fingers at calibration = [.....]".
-                      format(num,move_file))
+            my_logger("{}:Skipping object id {}: {}-ur5 line 0 should have Fingers at calibration = [.....]".
+                      format(scriptname,num,move_file))
+            result_logger.info("Object {} grasp replay: Failure:line 0 should have Fingers at calibration file {}".format(num, move_file))
             print("Skipping object id {}: {}-ur5 line 0 should have Fingers at calibration = [.....]".
                       format(num,move_file))
             continue
@@ -288,7 +305,7 @@ if __name__ == '__main__':
             fing_low_pos_data_col = lines[0][26:52].strip().split(",")
             fing_low_pos_data_col = map(int, fing_low_pos_data_col)
             fing_low_pos_data_col.insert(0, 0)
-            my_logger.info("Calibrated position of the gripper at data collection = {}".format(fing_low_pos_data_col))
+            my_logger.info("{}:Calibrated position of the gripper at data collection = {}".format(scriptname, fing_low_pos_data_col))
             print ("Calibrated position of the gripper at data collection = {}".format(fing_low_pos_data_col))
 
         num_waypoints, pose = way_points_ur5(lines[1:])
@@ -298,7 +315,8 @@ if __name__ == '__main__':
         HT_base_to_object = st_from_UR5_base_to_object_platform()
 
         if num_waypoints != 2:  # The current assumption is that we are providing only 2 waypoints in the move_file
-            my_logger.info("Skipping object id {}: {}-ur5 number of waypoints is not equal to 2".format(num,move_file))
+            my_logger.info("{}:Skipping object id {}: {}-ur5 number of waypoints is not equal to 2".format(scriptname,num,move_file))
+            result_logger.info("Object {} grasp replay: Failure: number of waypoints is not equal to 2 {}".format(num,move_file))
             print("Skipping object id {}: {}-ur5 number of waypoints is not equal to 2".format(num,move_file))
             continue
         else:
@@ -312,8 +330,10 @@ if __name__ == '__main__':
                 x, y, z, Rx, Ry, Rz = base_to_gripper([x, y, z, Rx, Ry, Rz], HT_base_to_object)
                 val, msg = check_position(x, y, z)
                 if val == 0:
-                    my_logger.info("Skipping object id {}: Pose line {}: ".format(num,my_line) +
+                    my_logger.info("{}:Skipping object id {}: Pose line {}: ".format(scriptname,num,my_line) +
                                    "coordinates outside the box: "+ msg)
+                    result_logger.info("Object {} grasp replay: Skip:Pose line {} ".format(num,my_line)
+                                       + "coordinates outside the box: "+ msg)
                     print("Skipping object id {}: Pose line {}: ".format(num,my_line) +
                                    "coordinates outside the box: "+ msg)
                     skip = 1
@@ -328,9 +348,11 @@ if __name__ == '__main__':
 
                 val, msg = check_if_finger_movement_excessive(my_grip)
                 if val == 0:
-                    my_logger.info("Skipping object id {}: Pose {}: ".format(num, my_line) +
+                    my_logger.info("{}:Skipping object id {}: Pose {}: ".format(scriptname,num, my_line) +
                                    "finger angles outside limit: "+ msg)
-                    my_logger.info("Skipping object id {}: Pose {}: ".format(num, my_line) +
+                    result_logger.info("Object {} grasp replay: Skip:Pose {} ".format(num, my_line)
+                                       + "finger angles outside limit: " + msg)
+                    print("Skipping object id {}: Pose {}: ".format(num, my_line) +
                                    "finger angles outside limit: "+ msg)
                     skip = 1
                     break
@@ -339,8 +361,8 @@ if __name__ == '__main__':
                 my_grip[3] = my_grip[3] + current_finger_low_pos[3]
                 my_grip[4] = 0  # temp to restrict finger spreading
                 finger_pos.append(my_grip)
-                my_logger.info("Position {}: x={:.3f}, y={:.3f}, z={:.3f}, Rx={:.3f}, Ry={:.3f}, Rz={:.3f}, Fingers {}".
-                      format(my_line, x, y, z, Rx, Ry, Rz, my_grip))
+                my_logger.info("{}:Position {}: x={:.3f}, y={:.3f}, z={:.3f}, Rx={:.3f}, Ry={:.3f}, Rz={:.3f}, Fingers {}".
+                      format(scriptname,my_line, x, y, z, Rx, Ry, Rz, my_grip))
                 print("Position {}: x={:.3f}, y={:.3f}, z={:.3f}, Rx={:.3f}, Ry={:.3f}, Rz={:.3f}, Fingers {}".
                       format(my_line, x, y, z, Rx, Ry, Rz,my_grip))
                 my_line += 1
@@ -353,29 +375,52 @@ if __name__ == '__main__':
         # t, x, y, z, Rx, Ry, Rz, f1, f2, f3, f4 = 6.666211, 10.463093, -105.186267, 169.729363, -1.043381, -1.463836, -0.950437, 15640, 13834, 17446, 12866
         # grasp step 1
         remote_commander.send(command_str[0])
-        time.sleep(8.0)
+        time.sleep(5.0)
         my_gripper.palm.move_to_goal_position(finger_pos[0])
         # grasp
         remote_commander.send(command_str[1])
-        time.sleep(6.0)
+        time.sleep(2.0)
         my_gripper.palm.move_to_goal_position(finger_pos[1])
+        time.sleep(2.0)
         # lift
         remote_commander.send(command_str[0])
-        time.sleep(6.0)
+        time.sleep(2.0)
         # put it back
         remote_commander.send(command_str[1])
         time.sleep(2.0)
         # release fingers
         my_gripper.palm.move_to_goal_position(finger_pos[0])
-
+        time.sleep(2.0)
         # Sending the tcp back to the start location
         x, y, z, Rx, Ry, Rz = starting_pose
         success, command_str = ur5.compose_command(x, y, z, Rx, Ry, Rz)
         if success:
             print("Command String: {}".format(command_str))
-            my_logger.info("Sending Command: {}".format(command_str))
+            my_logger.info("{}:Sending Command: {}".format(scriptname,command_str))
             remote_commander.send(command_str)
             time.sleep(5.0)
         remote_commander.close()
         my_gripper.move_to_start()
+
+        img_filename = '../trials/{}_RS_color.npy'.format(num)
+        img = np.load(img_filename)
+        cv2.imshow("RS", img)  # opens CV window with image overlaid on frames
+        while True:
+
+            ret, frame = cap.read()
+            k = cv2.waitKey(1)
+            k = k % 256
+            if k == 115:
+                result_logger.info("Object {} grasp replay: Success".format(num))
+                my_logger.info("Object {} grasp replay: Success".format(num))
+                break
+            elif k == 102:
+                result_logger.info("Object {} grasp replay: Failure".format(num))
+                my_logger.info("Object {} grasp replay: Failure".format(num))
+                break
+            else:
+                pass
+
+        cv2.destroyAllWindows()
+
 

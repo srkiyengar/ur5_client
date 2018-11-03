@@ -8,12 +8,15 @@ import math
 import numpy as np
 import transform
 import rotmath as rm
+import os
+
+
 
 
 #labview_fname = "1140-2017-05-23-at-20-04-18 .txt"
 labview_fname = "1408-2017-10-09-at-18-14-19 .txt"
 #logger
-LOG_LEVEL = logging.DEBUG
+LOG_LEVEL = logging.INFO
 LOG_FILENAME = 'ur5' + datetime.now().strftime('%Y-%m-%d---%H:%M:%S')
 
 PORT_SECONDARY_CLIENT = 30002
@@ -22,18 +25,20 @@ HOST = '192.168.10.2'
 
 my_logger = logging.getLogger("UR5_Logger")
 
+scriptname = os.path.basename(__file__)
+
 # get_UR5_tool_position() to get the pose,seem to require opening and closing the socket.
 def get_UR5_tool_position(logger=my_logger):
     rt_connection = tc.ur5_connector(HOST,PORT_REALTIME_CLIENT)
-    logger.info("reading packets from UR5")
+    logger.info("{}:reading packets from UR5".format(scriptname))
     message_size = rt_connection.recv(4)                    # Read first 4 bytes only
     total_length = struct.unpack('!I',message_size)[0]      # Total length of the packets following the first 4 bytes
-    logger.info("Message Size of RT_client response from UR5: {}".format(total_length))
+    logger.info("{}:Message Size of RT_client response from UR5: {}".format(scriptname,total_length))
     message = rt_connection.recv(total_length)
     message_len = len(message)
     rt_connection.close()
     if message_len != total_length:
-        logger.info("Warning !!!! - {} Bytes read NOT equal to {} bytes expected from UR5".format(total_length,message_len))
+        logger.info("{}:Warning !!!! - {} Bytes read NOT equal to {} bytes expected from UR5".format(scriptname,total_length,message_len))
 
     tool_pos = message[440:488]                         # 48 bytes consisting of 8 bytes of x,y,z,rx,ry,rz)
     my_tuple = struct.unpack('!dddddd',tool_pos)
@@ -47,12 +52,12 @@ def get_UR5_tool_position(logger=my_logger):
 def set_UR5_tool_position(tool_pose,acceleration=((math.pi*4)/9), velocity=(math.pi/3),logger=my_logger):
 
     my_connection = tc.ur5_connector(HOST,PORT_REALTIME_CLIENT)
-    logger.info("Sending command to UR5")
+    logger.info("{}:Sending command to UR5".format(scriptname))
 
     tool_str = tool_pose
     command_str = 'movej(' + tool_str + ',' + 'a=' + str(acceleration) + ',v='+ str(velocity) +')\n'
     my_connection.send(command_str)
-    logger.info("Command Sent")
+    logger.info("{}:Command Sent".format(scriptname))
     my_connection.close()
 
 
@@ -74,7 +79,7 @@ class UR5_commander:
     def __init__(self,host=HOST,port=PORT_REALTIME_CLIENT):
         self.commander = tc.ur5_connector(host,port)
         if self.commander.my_socket.link == 0:
-            raise RuntimeError("No socket connection to UR5")
+            raise RuntimeError("{}:No socket connection to UR5".format(scriptname))
             self.connection = 0
         else:
             self.connection = 1

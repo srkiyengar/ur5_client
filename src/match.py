@@ -1,12 +1,11 @@
 __author__ = 'srkiyengar'
 
 import os
-import shutil
 import logging.handlers
-from datetime import datetime
 
 
-LOG_LEVEL = logging.DEBUG
+scriptname = os.path.basename(__file__)
+LOG_LEVEL = logging.INFO
 
 # Set up a logger with output level set to debug; Add the handler to the logger
 my_logger = logging.getLogger("UR5_Logger")
@@ -19,9 +18,10 @@ class match:
 
         # create directories if they don't exisit
         if not os.path.exists(dname):
-            raise ("The directory {} does not exist".format(dname))
-            sys.exit(1)
+            my_logger.info("{}:The directory {} does not exist".format(scriptname,dname))
+            self.success = False
         else:
+            self.success = True
             self.dname = dname
             self.ur5_files = []
             self.npy_files = []

@@ -130,6 +130,7 @@ class gripper():
             clock.tick(SCAN_RATE)
 
         # Calibration completed
+        pygame.quit()
         return
 
     def move_to_start(self):
